@@ -45,12 +45,12 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out the app
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
       - name: Check out the shared check scripts
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: tinyhustlers/workflows
           ref: ${{ inputs.workflows-ref }}
@@ -59,7 +59,7 @@ jobs:
 
       - name: Check out the base branch changelog
         if: ${{ github.event_name == 'pull_request' }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.base_ref }}
           path: .th/base
@@ -67,7 +67,7 @@ jobs:
           sparse-checkout-cone-mode: false
           persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
 
@@ -112,7 +112,7 @@ jobs:
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         env:
           REQUIRE: ${{ inputs.require-release && '--require' || '' }}
-        run: node .th/workflows/scripts/check-version.mjs .th/base/CHANGELOG.md CHANGELOG.md $REQUIRE
+        run: node .th/workflows/scripts/check-version.mjs .th/base/CHANGELOG.md CHANGELOG.md ${REQUIRE:+"$REQUIRE"}
 
       - name: 5. Supabase access rules
         id: supabase
