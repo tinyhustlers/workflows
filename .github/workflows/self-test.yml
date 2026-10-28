@@ -1,0 +1,33 @@
+name: Self-test
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --test
+      - name: Lint workflow files (actionlint)
+        run: |
+          curl -sSfL -o al.tgz https://github.com/rhysd/actionlint/releases/download/v1.7.7/actionlint_1.7.7_linux_amd64.tar.gz
+          tar xzf al.tgz actionlint
+          ./actionlint .github/workflows/*.yml templates/*.yml
+
+  # Run the shared check on this repo itself, the same way an app does.
+  security:
+    uses: ./.github/workflows/security.yml
+    with:
+      workflows-ref: ${{ github.head_ref || github.ref_name }}

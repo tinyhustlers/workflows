@@ -1,0 +1,142 @@
+# Tiny Hustlers shared security check. Every app repo calls this on each pull request:
+#
+#   jobs:
+#     security:
+#       uses: tinyhustlers/workflows/.github/workflows/security.yml@main
+#
+# It fails the PR on: a leaked key, a package with a known vulnerability, a high-severity
+# code finding, a wrong version bump, or a Supabase table without access rules.
+name: Security check
+
+on:
+  workflow_call:
+    inputs:
+      require-release:
+        description: Fail when CHANGELOG.md has no +0.01 version bump (set true for release PRs into dev).
+        type: boolean
+        default: false
+      supabase-migrations:
+        description: Folder with Supabase SQL migrations. Skipped when it does not exist.
+        type: string
+        default: supabase/migrations
+      semgrep:
+        description: Run the Semgrep code scan.
+        type: boolean
+        default: true
+      workflows-ref:
+        description: Version of tinyhustlers/workflows to use for the check scripts.
+        type: string
+        default: main
+
+permissions:
+  contents: read
+
+env:
+  GITLEAKS_VERSION: 8.24.3
+  GITLEAKS_SHA256: 9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c
+  OSV_VERSION: 2.2.2
+  OSV_SHA256: c799274b682e0437c802d4714a136ad09b39c65547c460049ba5358d28afa576
+  SEMGREP_VERSION: 1.182.1
+
+jobs:
+  security:
+    name: Security check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out the app
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Check out the shared check scripts
+        uses: actions/checkout@v4
+        with:
+          repository: tinyhustlers/workflows
+          ref: ${{ inputs.workflows-ref }}
+          path: .th/workflows
+          persist-credentials: false
+
+      - name: Check out the base branch changelog
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          path: .th/base
+          sparse-checkout: CHANGELOG.md
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install scanners (pinned versions, checksums verified)
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/bin"
+          cd "$RUNNER_TEMP"
+          curl -sSfL -o gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar xzf gitleaks.tgz -C bin gitleaks
+          curl -sSfL -o bin/osv-scanner "https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}/osv-scanner_linux_amd64"
+          echo "${OSV_SHA256}  bin/osv-scanner" | sha256sum -c -
+          chmod +x bin/*
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: 1. Leaked keys (gitleaks)
+        id: secrets
+        if: ${{ !cancelled() }}
+        run: gitleaks dir . --redact --no-banner --exit-code 1 --config .th/workflows/gitleaks.toml
+
+      - name: 2. Vulnerable packages (OSV-Scanner)
+        id: packages
+        if: ${{ !cancelled() }}
+        run: |
+          set +e
+          osv-scanner scan source --recursive .
+          code=$?
+          # 128 = no package manifests found (nothing to check).
+          if [ "$code" = "128" ]; then echo "No package manifests found; skipping."; exit 0; fi
+          exit $code
+
+      - name: 3. Risky code patterns (Semgrep, high severity blocks)
+        id: code
+        if: ${{ !cancelled() && inputs.semgrep }}
+        run: |
+          pip install --quiet "semgrep==${SEMGREP_VERSION}"
+          semgrep scan --config p/default --severity ERROR --error --metrics=off --exclude .th --quiet
+
+      - name: 4. Version and changelog (+0.01 rule)
+        id: version
+        if: ${{ !cancelled() && github.event_name == 'pull_request' }}
+        env:
+          REQUIRE: ${{ inputs.require-release && '--require' || '' }}
+        run: node .th/workflows/scripts/check-version.mjs .th/base/CHANGELOG.md CHANGELOG.md $REQUIRE
+
+      - name: 5. Supabase access rules
+        id: supabase
+        if: ${{ !cancelled() }}
+        env:
+          MIGRATIONS: ${{ inputs.supabase-migrations }}
+        run: node .th/workflows/scripts/check-supabase-rls.mjs "$MIGRATIONS"
+
+      - name: Summary
+        if: ${{ always() }}
+        env:
+          R1: ${{ steps.secrets.outcome }}
+          R2: ${{ steps.packages.outcome }}
+          R3: ${{ steps.code.outcome }}
+          R4: ${{ steps.version.outcome }}
+          R5: ${{ steps.supabase.outcome }}
+        run: |
+          {
+            echo "### Security check"
+            echo "| Check | Result |"
+            echo "| --- | --- |"
+            echo "| Leaked keys | ${R1} |"
+            echo "| Vulnerable packages | ${R2} |"
+            echo "| Risky code (high severity) | ${R3} |"
+            echo "| Version +0.01 | ${R4} |"
+            echo "| Supabase access rules | ${R5} |"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,7 @@
+# Default gitleaks rules, minus the helper checkouts this workflow adds.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Shared workflow helper checkouts"
+paths = ['''^\.th/''', '''(^|/)\.th/''']
