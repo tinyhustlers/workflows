@@ -42,3 +42,18 @@ test('flags open policies for anonymous users only', () => {
   const off = analyse('alter table public.notes disable row level security;');
   assert.equal(off.problems.length, 1);
 });
+
+import { fromOsv, fromSemgrep } from '../scripts/annotate.mjs';
+
+test('turns OSV and Semgrep reports into readable rows', () => {
+  const osv = { results: [{ source: { path: '/home/runner/work/app/app/package-lock.json' }, packages: [
+    { package: { name: 'vite', version: '5.0.0' }, vulnerabilities: [{ id: 'GHSA-1', summary: 'Path traversal' }], groups: [{ max_severity: '7.5' }] },
+    { package: { name: 'ok', version: '1.0.0' }, vulnerabilities: [] }] }] };
+  const rows = fromOsv(osv);
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].file, 'package-lock.json');
+  assert.match(rows[0].detail, /GHSA-1.*CVSS 7.5|CVSS 7.5.*GHSA-1/);
+  const sg = fromSemgrep({ results: [{ path: 'src/a.ts', start: { line: 3 }, check_id: 'x.y.eval-usage', extra: { message: 'eval is dangerous' } }] });
+  assert.deepEqual(sg[0], { file: 'src/a.ts', line: 3, title: 'eval-usage', detail: 'eval is dangerous' });
+  assert.equal(fromOsv({}).length, 0);
+});

@@ -23,7 +23,7 @@ Copy `templates/security-caller.yml` to `.github/workflows/security.yml` in the 
 
 | Input | Default | Meaning |
 | --- | --- | --- |
-| `require-release` | `false` | Fail without a +0.01 CHANGELOG bump |
+| `require-release` | `false` | Fail without a +0.01 CHANGELOG bump (the template turns it on for PR titles like "Speakco v0.14: ...") |
 | `supabase-migrations` | `supabase/migrations` | Where the SQL migrations live (skipped if missing) |
 | `semgrep` | `true` | Run the code scan |
 

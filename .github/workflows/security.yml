@@ -94,18 +94,23 @@ jobs:
         if: ${{ !cancelled() }}
         run: |
           set +e
-          osv-scanner scan source --recursive .
+          osv-scanner scan source --recursive --format json --output "$RUNNER_TEMP/osv.json" .
           code=$?
           # 128 = no package manifests found (nothing to check).
           if [ "$code" = "128" ]; then echo "No package manifests found; skipping."; exit 0; fi
-          exit $code
+          if [ "$code" != "0" ] && [ "$code" != "1" ]; then exit "$code"; fi
+          node .th/workflows/scripts/annotate.mjs osv "$RUNNER_TEMP/osv.json"
 
       - name: 3. Risky code patterns (Semgrep, high severity blocks)
         id: code
         if: ${{ !cancelled() && inputs.semgrep }}
         run: |
           pip install --quiet "semgrep==${SEMGREP_VERSION}"
-          semgrep scan --config p/default --severity ERROR --error --metrics=off --exclude .th --quiet
+          set +e
+          semgrep scan --config p/default --severity ERROR --metrics=off --exclude .th --quiet --json --output "$RUNNER_TEMP/semgrep.json"
+          code=$?
+          if [ "$code" != "0" ]; then exit "$code"; fi
+          node .th/workflows/scripts/annotate.mjs semgrep "$RUNNER_TEMP/semgrep.json"
 
       - name: 4. Version and changelog (+0.01 rule)
         id: version
