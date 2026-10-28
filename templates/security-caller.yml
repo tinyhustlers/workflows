@@ -1,0 +1,17 @@
+# Copy to .github/workflows/security.yml in an app repo.
+name: Security
+
+on:
+  pull_request:
+  push:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+
+jobs:
+  security:
+    uses: tinyhustlers/workflows/.github/workflows/security.yml@main
+    with:
+      # Release PRs into dev must bump the version by exactly +0.01.
+      require-release: ${{ github.event_name == 'pull_request' && github.base_ref == 'dev' }}
