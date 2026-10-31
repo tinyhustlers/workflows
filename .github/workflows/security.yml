@@ -12,7 +12,7 @@ on:
   workflow_call:
     inputs:
       require-release:
-        description: Fail when CHANGELOG.md has no +0.01 version bump (set true for release PRs into dev).
+        description: Fail when CHANGELOG.md has no Semantic Versioning bump (set true for release PRs into dev).
         type: boolean
         default: false
       supabase-migrations:
@@ -112,7 +112,7 @@ jobs:
           if [ "$code" != "0" ]; then exit "$code"; fi
           node .th/workflows/scripts/annotate.mjs semgrep "$RUNNER_TEMP/semgrep.json"
 
-      - name: 4. Version and changelog (+0.01 rule)
+      - name: 4. Version and changelog (semver rule)
         id: version
         if: ${{ !cancelled() && github.event_name == 'pull_request' }}
         env:
@@ -142,6 +142,6 @@ jobs:
             echo "| Leaked keys | ${R1} |"
             echo "| Vulnerable packages | ${R2} |"
             echo "| Risky code (high severity) | ${R3} |"
-            echo "| Version +0.01 | ${R4} |"
+            echo "| Version (semver) | ${R4} |"
             echo "| Supabase access rules | ${R5} |"
           } >> "$GITHUB_STEP_SUMMARY"

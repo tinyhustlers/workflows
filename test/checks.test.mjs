@@ -5,20 +5,31 @@ import { analyse } from '../scripts/check-supabase-rls.mjs';
 
 const cl = (...v) => v.map((x) => `## ${x} (2026-10-28)\n- change`).join('\n\n');
 
-test('reads the top version', () => {
-  assert.equal(topVersion(cl('v0.13', 'v0.12')), 13);
-  assert.equal(topVersion('# Changelog\n\n## v1.02'), 102);
+test('reads the top version (semver, and old v0.NN headings as 0.NN.0)', () => {
+  assert.deepEqual(topVersion(cl('v0.17.0', 'v0.16.1')), [0, 17, 0]);
+  assert.deepEqual(topVersion('# Changelog\n\n## v1.2.3'), [1, 2, 3]);
+  assert.deepEqual(topVersion(cl('v0.16', 'v0.15')), [0, 16, 0]);
   assert.equal(topVersion('nothing'), null);
 });
 
-test('+0.01 passes, skips and wrong bumps fail', () => {
-  assert.equal(check(cl('v0.09'), cl('v0.10', 'v0.09')).level, 'pass');
-  assert.equal(check(cl('v0.09'), cl('v0.11')).level, 'fail');
-  assert.equal(check(cl('v0.09'), cl('v0.08')).level, 'fail');
-  assert.equal(check(cl('v0.09'), cl('v0.09')).level, 'warn');
-  assert.equal(check(cl('v0.09'), cl('v0.09'), true).level, 'fail');
-  assert.equal(check('', cl('v0.01')).level, 'pass');
+test('semver: one patch, minor or major step passes; skips and going back fail', () => {
+  assert.equal(check(cl('v0.16.0'), cl('v0.16.1', 'v0.16.0')).level, 'pass');
+  assert.equal(check(cl('v0.16.1'), cl('v0.17.0')).level, 'pass');
+  assert.equal(check(cl('v0.17.4'), cl('v1.0.0')).level, 'pass');
+  assert.equal(check(cl('v0.16.0'), cl('v0.16.2')).level, 'fail');
+  assert.equal(check(cl('v0.16.1'), cl('v0.17.1')).level, 'fail');
+  assert.equal(check(cl('v0.16.1'), cl('v0.18.0')).level, 'fail');
+  assert.equal(check(cl('v0.16.1'), cl('v0.16.0')).level, 'fail');
+  assert.equal(check(cl('v0.16.0'), cl('v0.16.0')).level, 'warn');
+  assert.equal(check(cl('v0.16.0'), cl('v0.16.0'), true).level, 'fail');
+  assert.equal(check('', cl('v0.1.0')).level, 'pass');
   assert.equal(check('', '', true).level, 'fail');
+});
+
+test('moving from an old v0.NN changelog to semver', () => {
+  assert.equal(check(cl('v0.16'), cl('v0.16.0')).level, 'warn');
+  assert.equal(check(cl('v0.16'), cl('v0.16.1')).level, 'pass');
+  assert.equal(check(cl('v0.16'), cl('v0.17.0')).level, 'pass');
 });
 
 test('flags tables without row level security', () => {

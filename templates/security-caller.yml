@@ -13,5 +13,5 @@ jobs:
   security:
     uses: tinyhustlers/workflows/.github/workflows/security.yml@main
     with:
-      # Release PRs (title "<App> v0.NN: ...") must bump the version by exactly +0.01.
-      require-release: ${{ contains(github.event.pull_request.title, ' v0.') }}
+      # Release PRs (title "<App> vX.Y.Z: ...") must bump the version one semver step.
+      require-release: ${{ contains(github.event.pull_request.title, ' v0.') || contains(github.event.pull_request.title, ' v1.') || contains(github.event.pull_request.title, ' v2.') }}
