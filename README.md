@@ -12,7 +12,7 @@ Runs on every pull request in every app and blocks the merge when it finds:
 | 1 | Leaked keys and passwords | gitleaks 8.24.3 | Any finding |
 | 2 | Packages with known vulnerabilities | OSV-Scanner 2.2.2 | Any known vulnerability |
 | 3 | Risky code patterns | Semgrep CE (`p/default`) | High-severity findings only |
-| 4 | Version rule | `scripts/check-version.mjs` | Version not exactly +0.01 (release PRs into `dev`) |
+| 4 | Version rule | `scripts/check-version.mjs` | Version not one Semantic Versioning step: patch, minor or major (release PRs into `dev`) |
 | 5 | Supabase access rules | `scripts/check-supabase-rls.mjs` | A table without row-level security, or a policy open to anyone |
 
 Scanner binaries are pinned and their SHA-256 checksums verified before running. The job only reads the repo.
@@ -23,7 +23,7 @@ Copy `templates/security-caller.yml` to `.github/workflows/security.yml` in the 
 
 | Input | Default | Meaning |
 | --- | --- | --- |
-| `require-release` | `false` | Fail without a +0.01 CHANGELOG bump (the template turns it on for PR titles like "Speakco v0.14: ...") |
+| `require-release` | `false` | Fail without a semver CHANGELOG bump (the template turns it on for PR titles like "Speakco v0.17.0: ...") |
 | `supabase-migrations` | `supabase/migrations` | Where the SQL migrations live (skipped if missing) |
 | `semgrep` | `true` | Run the code scan |
 
